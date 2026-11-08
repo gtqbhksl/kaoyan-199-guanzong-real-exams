@@ -134,6 +134,36 @@ python study-guide/build_data.py
 共享题干与 SVG 图形按题号归属,原卷图片路径保留。该数据与下方 RAG 切分库分别构建,
 不应直接修改生成文件,也无需为运行复习台重跑 OCR 或原卷切图。
 
+### Docker 部署
+
+仓库根目录已带 Dockerfile 与 docker-compose.yml,构建出的镜像只含静态站点
+与 nginx,不含题库 md / RAG 切分库 / PDF。
+
+```bash
+docker compose up -d --build      # 构建并后台启动
+docker compose logs -f             # 查看日志
+docker compose down                # 停止并清理
+```
+
+或者直接用 docker:
+
+```bash
+docker build -t kaoyan199-study-guide .
+docker run -d --name kaoyan199 -p 8080:80 kaoyan199-study-guide
+```
+
+打开 http://localhost:8080/ 即可。镜像分两阶段:构建阶段用 Pillow 把 1073 张
+原卷 PNG 切片转码成 WebP 并组装静态站点,运行阶段由 nginx 托管,单进程、
+纯静态、已配置 gzip 与缓存头(切片图长缓存,题库数据不缓存)。
+
+构建上下文约 293 MiB(几乎全是原卷切片图),`.git`、题库 md、RAG 切分库、
+文档与 OCR 缓存均已排除;页面改动只需重建最后一层,不必重转 1073 张图。
+部署相关文件见 `deploy/`,其中 `check_deploy_config.py` 可在没有 Docker 的
+环境里静态校验 compose 与 nginx 配置。
+
+注意:数学公式走 CDN 加载 MathJax,首次访问需要外网,离线环境会显示 LaTeX 原文;
+作答记录存在浏览器 localStorage,容器重启不影响,换浏览器或域名也不共享。
+
 ### 生成可发布静态站点
 
 需要把复习台部署到静态托管时执行:
@@ -194,6 +224,13 @@ node study-guide/scripts/verify_knowledge_ui.js   # 知识卡筛选、检索与�
     {year}年199真题解析_chunks.jsonl  该年答案 RAG 切分(55 条主切分 +
                                        写作题板块子切分,共 57~64 条)
   199管综历年真题_全量RAG切分库_答案.jsonl  2009–2026 年 1069 条汇总
+deploy/                              容器化部署
+  nginx.conf                        静态站点 nginx 配置(gzip、缓存头)
+  check_deploy_config.py            compose / nginx / Dockerfile 静态校验
+  check_docker_context.py           核算 .dockerignore 后的构建上下文
+  materialize_context.py            按忽略规则复制出构建上下文(离线验证用)
+Dockerfile                          两阶段构建:构建静态站点 → nginx 托管
+docker-compose.yml                  一键构建启动
 study-guide/                       本地浏览器复习台(原生 HTML / CSS / JavaScript)
   index.html / app.js / styles.css   页面、交互与样式
   serve.py                          本地 HTTP 服务(默认 8765,仓库根目录,no-cache)

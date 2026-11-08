@@ -1,0 +1,39 @@
+# Docker 构建上下文排除项
+#
+# .git 体积最大(约 300 MB)且构建用不到,必须排除;
+# 题库 md / RAG 切分库 / PDF / 文档不参与站点构建,一并排除,
+# 只保留 build_site.py 需要的切片图与复习台源码。
+#
+# 注意:Docker 的忽略规则按 Go filepath.Match 语义匹配,`*` 不跨 `/`,
+# 因此深层文件要用 `**/` 前缀,否则匹配不到。
+
+.git
+.gitignore
+.github
+
+# 站点构建产物:由 builder 阶段重新生成
+study-guide/web/
+
+# 题库正文与切分库:站点直接读 questions.js,不需要这些
+199管综答案_Markdown题库/
+docs/
+scripts/
+**/*.md
+**/*.jsonl
+**/*.json
+
+# 原始试卷与答案 PDF(仓库中本就没有,占位防误加)
+真题部分/
+答案部分/
+**/*.pdf
+
+# OCR 缓存与 Python 缓存
+ocr_cache/
+**/__pycache__/
+**/*.pyc
+
+# 部署清单本身(Dockerfile 会 COPY deploy/nginx.conf,不能排除)
+Dockerfile
+.dockerignore
+docker-compose.yml
+README.md

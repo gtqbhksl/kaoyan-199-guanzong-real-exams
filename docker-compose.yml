@@ -1,0 +1,22 @@
+# 考研管综 199 真题复习台 —— Docker Compose 部署
+#
+#   docker compose up -d --build     构建并后台启动
+#   docker compose logs -f            查看日志
+#   docker compose down               停止并清理
+#
+# 打开 http://localhost:8080/
+
+services:
+  study-guide:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: kaoyan199-study-guide:latest
+    container_name: kaoyan199-study-guide
+    ports:
+      # 左边是宿主机端口,可自行改成 80 或其他未被占用的端口
+      - "8080:80"
+    restart: unless-stopped
+    labels:
+      - "org.opencontainers.image.title=199 管综真题复习台"
+      - "org.opencontainers.image.source=https://github.com/gtqbhksl/kaoyan-199-guanzong-real-exams"

@@ -27,8 +27,8 @@ ROOT = Path(__file__).resolve().parent
 OUTPUT = ROOT / "web"
 BANK_DIR = ROOT.parent / "199管综真题_Markdown题库"
 
-APP_TEMPLATE = "../199管综真题_Markdown题库/{year}年/images/{file}"
-APP_SITE_TEMPLATE = "./scans/{year}/{file}"
+APP_TEMPLATE = "../199管综真题_Markdown题库/{year}年/images/{file}.png"
+APP_SITE_TEMPLATE = "./scans/{year}/{file}.webp"
 
 WEBP_QUALITY = 72
 WEBP_METHOD = 4

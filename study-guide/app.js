@@ -4,7 +4,7 @@
   const STORE_KEY = "kaoyan199-study-guide-v1";
   const DEFAULT_SETTINGS = { examDate: "2026-12-19", weeklyHours: 14 };
   // 原卷切片图路径模板：本地复习台指向 Markdown 题库，站点构建产物改写为站点内目录
-  const IMAGE_PATH_TEMPLATE = "../199管综真题_Markdown题库/{year}年/images/{file}";
+  const IMAGE_PATH_TEMPLATE = "../199管综真题_Markdown题库/{year}年/images/{file}.png";
   const VIEW_NAMES = {
     practice: "真题训练",
     mistakes: "错题本",
@@ -667,10 +667,11 @@
         <span>${renderMarkdownText(text)}</span>
       </button>`;
     }).join("");
+    const imageName = String(question.image).split("/").pop().replace(/\.[^.]+$/, "");
     const imagePath = question.image
       ? IMAGE_PATH_TEMPLATE
         .replace("{year}", String(question.year))
-        .replace("{file}", String(question.image).split("/").pop())
+        .replace("{file}", imageName)
       : null;
     const submittedCount = questions.filter(attemptFor).length;
     const suggestedMinutes = question.number <= 25 ? "2" : question.number <= 55 ? "2.5" : question.number === 56 ? "25–30" : "30–35";
