@@ -30,8 +30,9 @@ BANK_DIR = ROOT.parent / "199管综真题_Markdown题库"
 APP_TEMPLATE = "../199管综真题_Markdown题库/{year}年/images/{file}"
 APP_SITE_TEMPLATE = "./scans/{year}/{file}"
 
-WEBP_QUALITY = 78
+WEBP_QUALITY = 72
 WEBP_METHOD = 4
+MAX_WIDTH = 1600
 
 
 def rewrite_app(source: str) -> str:
@@ -101,11 +102,17 @@ def convert_scans(years: list[int]) -> tuple[int, int]:
         target_dir = OUTPUT / "scans" / str(year)
         target_dir.mkdir(parents=True, exist_ok=True)
         for source in sorted(source_dir.glob("*.png")):
+            if "shared" in source.stem:
+                # 共享题干切片图未被页面引用，不进入发布产物
+                continue
             target = target_dir / f"{source.stem}.webp"
             if target.exists() and target.stat().st_mtime >= source.stat().st_mtime:
                 skipped += 1
                 continue
             image = Image.open(source).convert("L")
+            if image.width > MAX_WIDTH:
+                height = round(image.height * MAX_WIDTH / image.width)
+                image = image.resize((MAX_WIDTH, height), Image.LANCZOS)
             buffer = io.BytesIO()
             image.save(buffer, "WEBP", quality=WEBP_QUALITY, method=WEBP_METHOD)
             target.write_bytes(buffer.getvalue())
