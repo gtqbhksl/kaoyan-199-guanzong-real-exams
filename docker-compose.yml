@@ -5,6 +5,9 @@
 #   docker compose down               停止并清理
 #
 # 打开 http://localhost:8080/
+#
+# 端口可用环境变量覆盖:
+#   HOST_PORT=9000 docker compose up -d --build
 
 services:
   study-guide:
@@ -15,8 +18,17 @@ services:
     container_name: kaoyan199-study-guide
     ports:
       # 左边是宿主机端口,可自行改成 80 或其他未被占用的端口
-      - "8080:80"
+      - "${HOST_PORT:-8080}:80"
     restart: unless-stopped
+    # 静态站点不吃内存,给个宽松上限防止异常占用拖垮宿主机
+    mem_limit: 256m
+    pids_limit: 100
+    # nginx 日志轮转,避免长期运行撑爆磁盘
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     labels:
       - "org.opencontainers.image.title=199 管综真题复习台"
       - "org.opencontainers.image.source=https://github.com/gtqbhksl/kaoyan-199-guanzong-real-exams"

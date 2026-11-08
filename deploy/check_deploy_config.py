@@ -39,7 +39,9 @@ def check_compose():
         if "build" not in svc and "image" not in svc:
             errors.append(f"service {name} 既无 build 也无 image")
         for port in svc.get("ports", []):
-            if not re.match(r"^\d+:\d+$", str(port)):
+            # 允许 `${HOST_PORT:-8080}:80` 这类变量写法
+            pattern = r"^\$\{[A-Za-z_][A-Za-z0-9_]*(?::-[^}]*)?\}:\d+$|^\d+:\d+$"
+            if not re.match(pattern, str(port)):
                 errors.append(f"service {name} 端口写法异常: {port}")
     notes.append(f"compose services: {', '.join(data['services'])}")
 
