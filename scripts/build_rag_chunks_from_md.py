@@ -47,18 +47,24 @@ IMG = re.compile(r"^!\[[^\]]*\]\((images/[^)]+)\)$")
 HEADER = re.compile(r"^(## |### )")
 SVG_OPEN = re.compile(r"^\s*<svg\b")
 SVG_CLOSE = "</svg>"
+QUOTE = re.compile(r"^>\s?")
 
 
 def drop_svg(lines):
-    """md 中的 SVG 重绘图块(2024/2025/2026 补图)是给人看的插图,不进 chunk 文本。"""
+    """md 中的 SVG 重绘图块(2024/2025/2026 补图)是给人看的插图,不进 chunk 文本。
+
+    共享题干里的插图被包在 "> " 引用块中,判定时需先剥掉引用前缀,
+    否则 2019 年的 54/55 题会把整段 SVG 源码写进 stem。
+    """
     out, in_svg = [], False
     for ln in lines:
+        body = QUOTE.sub("", ln, count=1) if ln.lstrip().startswith(">") else ln
         if in_svg:
-            if SVG_CLOSE in ln:
+            if SVG_CLOSE in body:
                 in_svg = False
             continue
-        if SVG_OPEN.match(ln):
-            if SVG_CLOSE not in ln:
+        if SVG_OPEN.match(body):
+            if SVG_CLOSE not in body:
                 in_svg = True
             continue
         out.append(ln)

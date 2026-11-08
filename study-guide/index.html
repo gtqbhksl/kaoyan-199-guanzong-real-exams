@@ -1,0 +1,402 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="基于 2009–2026 年 1026 道真题的 199 管理类联考复习工作台" />
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%23d5e769'/%3E%3Ctext x='16' y='21' text-anchor='middle' font-family='Helvetica,Arial,sans-serif' font-size='12' font-weight='700' fill='%23112c2f'%3E199%3C/text%3E%3C/svg%3E" />
+    <title>199 复习台 · 管综备考工作台</title>
+    <link rel="stylesheet" href="./styles.css" />
+    <script>
+      window.MathJax = {
+        tex: { inlineMath: [["$", "$"]], displayMath: [["$$", "$$"]] },
+        svg: { fontCache: "global" }
+      };
+    </script>
+    <script defer src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
+    <script src="./data/knowledge-base.js"></script>
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar" id="sidebar">
+        <a class="brand" href="#practice" aria-label="回到真题训练">
+          <span class="brand-mark"><span class="brand-numeral">199</span><svg class="brand-compass" aria-hidden="true" viewBox="0 0 24 24"><path d="M12 2v5M12 17v5M2 12h5M17 12h5"/><circle cx="12" cy="12" r="4"/><path d="m10 14 1-3 3-1-1 3Z"/></svg></span>
+          <span class="brand-text">
+            <strong>复习台</strong>
+            <small>MANAGEMENT EXAM</small>
+          </span>
+        </a>
+
+        <nav class="side-nav" aria-label="主要导航">
+          <button class="nav-item is-active" data-view="practice">
+            <svg class="icon" aria-hidden="true"><use href="#icon-edit"></use></svg>
+            <span>真题训练</span>
+          </button>
+          <button class="nav-item" data-view="mistakes">
+            <svg class="icon" aria-hidden="true"><use href="#icon-book"></use></svg>
+            <span>错题本</span>
+            <span class="nav-badge" id="nav-mistakes-badge" aria-label="待复习错题数">0</span>
+          </button>
+          <button class="nav-item" data-view="skills">
+            <svg class="icon" aria-hidden="true"><use href="#icon-search"></use></svg>
+            <span>知识点速查</span>
+          </button>
+        </nav>
+
+        <div class="side-rule"></div>
+
+        <div class="side-progress">
+          <div class="eyebrow">本周投入</div>
+          <div class="week-number"><span id="week-hours">0</span><small> 小时</small></div>
+          <div class="week-track"><span id="week-track-fill"></span></div>
+          <div class="side-streak">
+            <div class="side-streak-row"><span class="side-streak-value" id="streak-days">0</span><span>天连续学习</span></div>
+            <div class="side-week-dots" id="week-dots"></div>
+          </div>
+          <p class="exam-caption"><strong id="countdown-days">0</strong> 天后考试 · <span id="exam-date-caption"></span></p>
+        </div>
+
+        <div class="source-note">
+          <span class="status-dot"></span>
+          <div>
+            <strong>真题库已连接</strong>
+            <p>2009–2026 · 1026 题</p>
+          </div>
+        </div>
+      </aside>
+
+      <div class="main-column">
+        <header class="topbar">
+          <button class="icon-button mobile-menu" id="menu-toggle" aria-label="打开导航">
+            <svg class="icon" aria-hidden="true"><use href="#icon-menu"></use></svg>
+          </button>
+          <div class="breadcrumbs">
+            <span>备考工作台</span>
+            <span>/</span>
+            <strong id="breadcrumb-current">真题训练</strong>
+          </div>
+          <div class="top-actions">
+            <button class="icon-button" id="open-help" aria-label="使用说明" title="使用说明">
+              <svg class="icon" aria-hidden="true"><use href="#icon-help"></use></svg>
+            </button>
+            <button class="date-chip" id="date-chip" aria-label="设置考试日期">
+              <svg class="icon" aria-hidden="true"><use href="#icon-calendar"></use></svg>
+              <span id="date-label">距考试 62 天</span>
+            </button>
+            <button class="avatar-button" id="open-settings" aria-label="学习设置">学</button>
+          </div>
+        </header>
+
+        <main>
+          <section class="view is-active" id="view-practice" aria-labelledby="practice-heading">
+            <div class="page-heading practice-heading">
+              <div>
+                <div class="eyebrow">REAL QUESTIONS · 2009–2026</div>
+                <h1 id="practice-heading">真题训练</h1>
+                <p>每题独立作答，提交本题即可查看对错与解析，无需完成整套试卷。</p>
+              </div>
+              <div class="practice-header-stats">
+                <div><strong id="solved-total">0</strong><span>已完成</span></div>
+                <div><strong id="accuracy-total">—</strong><span>正确率</span></div>
+              </div>
+            </div>
+
+            <div class="trainer-layout">
+              <aside class="trainer-rail">
+                <div class="rail-label">选择训练范围</div>
+                <label class="field-label" for="practice-module">模块</label>
+                <select id="practice-module" class="select">
+                  <option value="math">数学基础（25 题）</option>
+                  <option value="logic">逻辑推理（30 题）</option>
+                  <option value="all">完整客观题（55 题）</option>
+                  <option value="writing">综合写作（2 篇）</option>
+                </select>
+                <label class="field-label" for="practice-year">年份</label>
+                <select id="practice-year" class="select"></select>
+                <label class="field-label" for="practice-question">直接定位题目</label>
+                <select id="practice-question" class="select" aria-controls="question-panel"></select>
+                <details class="question-navigator" id="question-navigator">
+                  <summary>题号面板 · 点击直达</summary>
+                  <div class="question-grid" id="question-grid" role="group" aria-label="按题号跳转"></div>
+                  <p class="question-legend"><span class="legend-good">答对</span><span class="legend-wrong">答错</span><span class="legend-draft">待提交 / 重做</span><span class="legend-writing">写作题</span><span>空白：未作答</span></p>
+                </details>
+                <button class="secondary-button full-width mistakes-entry" data-view-link="mistakes">打开错题本</button>
+                <div class="rail-info">
+                  <svg class="icon" aria-hidden="true"><use href="#icon-pen"></use></svg>
+                  <p>选择和提交结果按题保存在当前浏览器，切换题目或刷新后仍可继续。</p>
+                </div>
+                <button class="secondary-button full-width" id="practice-clear">
+                  清除当前范围作答
+                </button>
+              </aside>
+
+              <article class="question-panel" id="question-panel" tabindex="-1" aria-label="当前题目">
+                <div class="question-loading">正在读取题库…</div>
+              </article>
+            </div>
+          </section>
+
+          <section class="view" id="view-mistakes" aria-labelledby="mistakes-heading">
+            <div class="page-heading practice-heading">
+              <div>
+                <div class="eyebrow">MISTAKE NOTEBOOK · REVIEW &amp; RETRY</div>
+                <h1 id="mistakes-heading">错题本</h1>
+                <p>答错自动收录，旧作答也会同步。重新练习答对后归入已订正，仍可随时回看。</p>
+              </div>
+              <div class="practice-header-stats">
+                <div><strong id="mistakes-pending-total">0</strong><span>待复习</span></div>
+                <div><strong id="mistakes-mastered-total">0</strong><span>已订正</span></div>
+              </div>
+            </div>
+            <div class="mistakes-toolbar">
+              <label class="field-label">年份<select id="mistakes-year" class="select"><option value="all">全部年份</option></select></label>
+              <label class="field-label">模块<select id="mistakes-module" class="select"><option value="all">全部客观题</option><option value="math">数学基础</option><option value="logic">逻辑推理</option></select></label>
+              <label class="field-label">复习状态<select id="mistakes-status" class="select"><option value="pending">待复习</option><option value="mastered">已订正</option><option value="all">全部错题</option></select></label>
+              <button class="secondary-button" data-view-link="practice">返回真题训练</button>
+            </div>
+            <p class="mistakes-summary" id="mistakes-summary" role="status"></p>
+            <div class="mistakes-list" id="mistakes-list"></div>
+            <p class="mistakes-note">记录仅保存在当前浏览器。清除训练范围作答时，该范围的错题和订正记录也会清除。</p>
+          </section>
+
+          <section class="view" id="view-skills" aria-labelledby="skills-heading">
+            <div class="page-heading">
+              <div>
+                <div class="eyebrow">QUICK REFERENCE · KNOWLEDGE &amp; METHOD</div>
+                <h1 id="skills-heading">知识点速查</h1>
+                <p>公式、判断规则与写作方法集中在这里，用真题即时检验掌握程度。</p>
+              </div>
+              <div class="heading-actions">
+                <button class="outline-button" id="view-bank-summary">
+                  数据说明 <svg class="icon" aria-hidden="true"><use href="#icon-info"></use></svg>
+                </button>
+                <button class="outline-button" data-view-link="practice">
+                  用真题检验 <svg class="icon" aria-hidden="true"><use href="#icon-arrow-right"></use></svg>
+                </button>
+              </div>
+            </div>
+
+            <div class="skills-tabs" role="tablist" aria-label="学科">
+              <button class="skill-tab is-active" data-skill-tab="math" role="tab" aria-selected="true">数学基础</button>
+              <button class="skill-tab" data-skill-tab="logic" role="tab" aria-selected="false">逻辑推理</button>
+            </div>
+
+            <div class="skill-panel" id="skill-content"></div>
+
+            <div class="section-heading">
+              <div>
+                <div class="eyebrow">WRITING WORKBENCH · 65 POINTS</div>
+                <h2>写作方法与限时训练</h2>
+              </div>
+              <button class="primary-button" id="writing-start">
+                <svg class="icon" aria-hidden="true"><use href="#icon-play"></use></svg>
+                开始限时写作
+              </button>
+            </div>
+
+            <div class="writing-overview">
+              <div class="writing-score">
+                <div class="eyebrow light">SCORE MAP</div>
+                <strong>65</strong><span>分</span>
+                <p>两篇作文合计占整套试卷接近三分之一的分值。</p>
+              </div>
+              <div class="writing-rule">
+                <span class="writing-number">56</span>
+                <div><strong>论证有效性分析</strong><small>30 分 · 约 600 字 · 建议 25–30 分钟</small></div>
+                <span class="score-tag">找 4 个有效漏洞</span>
+              </div>
+              <div class="writing-rule">
+                <span class="writing-number">57</span>
+                <div><strong>论说文</strong><small>35 分 · 约 700 字 · 建议 30–35 分钟</small></div>
+                <span class="score-tag">观点鲜明 + 结构闭环</span>
+              </div>
+            </div>
+
+            <div class="module-grid writing-skill-grid" id="writing-skills-grid"></div>
+
+            <div class="writing-layout">
+              <div class="writing-methods">
+                <article class="method-card">
+                  <div class="method-index">01</div>
+                  <div>
+                    <span class="source-pill">论证有效性分析</span>
+                    <h3>四段批驳，不写个人立场</h3>
+                    <p>识别论据到结论之间的跳跃，再把“为什么推不出”说清。每个主体段只解决一个核心缺陷。</p>
+                    <ol class="method-list">
+                      <li><strong>引述：</strong>材料由什么推出什么</li>
+                      <li><strong>定性：</strong>指出以偏概全、偷换概念或强加因果</li>
+                      <li><strong>解释：</strong>给出反例或说明遗漏的复杂条件</li>
+                      <li><strong>收束：</strong>明确该推论不能必然成立</li>
+                    </ol>
+                  </div>
+                </article>
+                <article class="method-card">
+                  <div class="method-index">02</div>
+                  <div>
+                    <span class="source-pill">论说文</span>
+                    <h3>五段三分，先搭骨架再动笔</h3>
+                    <p>用引言亮明中心论点，三个分论点分别回答“是什么、为什么、怎么办”，结尾回扣材料。</p>
+                    <div class="structure-strip">
+                      <span>引材立论</span><span>分层论证</span><span>实践路径</span><span>升华回扣</span>
+                    </div>
+                  </div>
+                </article>
+              </div>
+              <aside class="runtime-card">
+                <div class="eyebrow">WRITING CLOCK</div>
+                <div class="runtime-clock" id="writing-clock">00:00</div>
+                <div class="runtime-controls">
+                  <button class="primary-button small-button" id="writing-toggle">开始</button>
+                  <button class="secondary-button small-button" id="writing-reset">重置</button>
+                </div>
+                <div class="runtime-list">
+                  <div><span>审题 / 列提纲</span><strong>5 分钟</strong></div>
+                  <div><span>论证有效性分析</span><strong>20–25 分钟</strong></div>
+                  <div><span>论说文</span><strong>25–30 分钟</strong></div>
+                  <div><span>检查结构 / 错字</span><strong>5 分钟</strong></div>
+                </div>
+              </aside>
+            </div>
+
+            <div class="section-heading">
+              <div>
+                <div class="eyebrow">RECENT PROMPTS</div>
+                <h2>近年写作题风向</h2>
+              </div>
+              <span class="quiet-label">点击“读取原题”进入真题训练</span>
+            </div>
+            <div class="prompt-grid">
+              <article class="prompt-card">
+                <span>2026 · 论说文</span>
+                <h3>全局视角与现场实践</h3>
+                <p>从“观众看全景”和“球员处一线”的材料中辨清两者关系，避免二选一。</p>
+                <button type="button" class="text-button" data-practice-writing="2026">读取原题 <svg class="icon" aria-hidden="true"><use href="#icon-arrow-right"></use></svg></button>
+              </article>
+              <article class="prompt-card">
+                <span>2025 · 论说文</span>
+                <h3>传统手工艺的传承与变革</h3>
+                <p>材料讨论传统工艺与工业制造，落点应在守正、创新与现实条件。</p>
+                <button type="button" class="text-button" data-practice-writing="2025">读取原题 <svg class="icon" aria-hidden="true"><use href="#icon-arrow-right"></use></svg></button>
+              </article>
+              <article class="prompt-card">
+                <span>2024 · 论说文</span>
+                <h3>发散思维与聚合思维</h3>
+                <p>把创新拆成“打开可能”与“收敛决策”两个阶段，再写它们如何互相成就。</p>
+                <button type="button" class="text-button" data-practice-writing="2024">读取原题 <svg class="icon" aria-hidden="true"><use href="#icon-arrow-right"></use></svg></button>
+              </article>
+            </div>
+
+            <div class="section-heading">
+              <div>
+                <div class="eyebrow">SELF REVIEW</div>
+                <h2>写完先过这四关</h2>
+              </div>
+            </div>
+            <div class="review-checklist" id="writing-review-list"></div>
+
+            <div class="section-heading knowledge-section-heading">
+              <div>
+                <div class="eyebrow">PDF KNOWLEDGE BASE · 5 SOURCES</div>
+                <h2>系统知识库</h2>
+              </div>
+              <span class="quiet-label">全部 / 核心 / 拓展 · 含理解与速解规则</span>
+            </div>
+            <div class="knowledge-toolbar">
+              <div class="knowledge-levels" id="knowledge-levels" role="group" aria-label="知识库范围">
+                <button class="knowledge-filter is-active" data-knowledge-level="all" aria-pressed="true">全部</button>
+                <button class="knowledge-filter" data-knowledge-level="core" aria-pressed="false">核心</button>
+                <button class="knowledge-filter" data-knowledge-level="ext" aria-pressed="false">拓展</button>
+              </div>
+              <label class="knowledge-search">
+                <svg class="icon" aria-hidden="true"><use href="#icon-search"></use></svg>
+                <span class="visually-hidden">搜索知识点</span>
+                <input id="knowledge-search" type="search" placeholder="搜索专题、公式、规则…" autocomplete="off" />
+              </label>
+            </div>
+            <div class="knowledge-meta" id="knowledge-meta"></div>
+            <div class="knowledge-layout">
+              <nav class="knowledge-tree" id="knowledge-tree" aria-label="知识库章节"></nav>
+              <article class="knowledge-reader" id="knowledge-reader"></article>
+            </div>
+            <details class="source-ledger">
+              <summary>资料范围与整理口径 <svg class="icon" aria-hidden="true"><use href="#icon-info"></use></svg></summary>
+              <div id="knowledge-sources"></div>
+            </details>
+
+            <div class="section-heading formula-section-heading">
+              <div>
+                <div class="eyebrow">QUICK REFERENCE</div>
+                <h2>高频公式与操作规则</h2>
+              </div>
+              <span class="quiet-label">点击展开 · 先默写再看</span>
+            </div>
+            <div class="formula-grid" id="formula-grid"></div>
+          </section>
+
+        </main>
+      </div>
+    </div>
+
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    <dialog class="settings-dialog" id="settings-dialog">
+      <form method="dialog" id="settings-form">
+        <div class="dialog-heading">
+          <div>
+            <div class="eyebrow">STUDY SETTINGS</div>
+            <h2>学习设置</h2>
+          </div>
+          <button class="icon-button" value="cancel" aria-label="关闭设置">
+            <svg class="icon" aria-hidden="true"><use href="#icon-close"></use></svg>
+          </button>
+        </div>
+        <label class="dialog-field" for="exam-date-input">
+          <span>考试日期</span>
+          <input id="exam-date-input" type="date" required />
+        </label>
+        <label class="dialog-field" for="weekly-hours-input">
+          <span>每周计划投入（小时）</span>
+          <input id="weekly-hours-input" type="number" min="1" max="60" step="1" />
+        </label>
+        <p class="dialog-note">倒计时与周投入目标只保存在当前浏览器。</p>
+        <button class="primary-button full-width" value="save" id="settings-save">保存设置</button>
+      </form>
+    </dialog>
+
+    <dialog class="notes-dialog" id="notes-dialog">
+      <div class="dialog-heading">
+        <div>
+          <div class="eyebrow">SOURCE NOTE</div>
+          <h2 id="notes-title">数据说明</h2>
+        </div>
+        <button class="icon-button" id="notes-close" aria-label="关闭">
+          <svg class="icon" aria-hidden="true"><use href="#icon-close"></use></svg>
+        </button>
+      </div>
+      <div id="notes-content" class="notes-content"></div>
+    </dialog>
+
+    <svg width="0" height="0" class="icon-sprite" aria-hidden="true">
+      <symbol id="icon-home" viewBox="0 0 24 24"><path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1Z"/></symbol>
+      <symbol id="icon-edit" viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4Z"/></symbol>
+      <symbol id="icon-book" viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20V4H6.5A2.5 2.5 0 0 0 4 6.5Z"/><path d="M4 6.5v13"/></symbol>
+      <symbol id="icon-pen" viewBox="0 0 24 24"><path d="m12 19 7-7 3 3-7 7-4 1Z"/><path d="m18 13-1.5-7.5L2 2l3.5 14.5L13 18Z"/><path d="m2 2 7.6 7.6"/></symbol>
+      <symbol id="icon-menu" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></symbol>
+      <symbol id="icon-help" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 2.5-3 4.5"/><path d="M12 18h.01"/></symbol>
+      <symbol id="icon-calendar" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 11h18"/></symbol>
+      <symbol id="icon-play" viewBox="0 0 24 24"><path d="m8 5 11 7-11 7Z"/></symbol>
+      <symbol id="icon-arrow-right" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></symbol>
+      <symbol id="icon-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
+      <symbol id="icon-flame" viewBox="0 0 24 24"><path d="M12 22c4 0 7-3 7-7 0-5-5-7-5-12-3 2-4 6-3 8-1 0-3-1-3-3-2 2-3 5-3 7 0 4 3 7 7 7Z"/></symbol>
+      <symbol id="icon-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7h.01"/></symbol>
+      <symbol id="icon-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></symbol>
+      <symbol id="icon-close" viewBox="0 0 24 24"><path d="m5 5 14 14M19 5 5 19"/></symbol>
+      <symbol id="icon-reset" viewBox="0 0 24 24"><path d="M4 4v6h6M5 15a7 7 0 1 0 2-7"/></symbol>
+      <symbol id="icon-check" viewBox="0 0 24 24"><path d="m4 12 5 5L20 6"/></symbol>
+      <symbol id="icon-chevron-down" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+      <symbol id="icon-arrow-left" viewBox="0 0 24 24"><path d="M19 12H5M11 18l-6-6 6-6"/></symbol>
+      <symbol id="icon-chart" viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></symbol>
+    </svg>
+    <script src="./data/questions.js"></script>
+    <script src="./app.js"></script>
+  </body>
+</html>
