@@ -1014,6 +1014,19 @@ main {
   font: 500 11px/1 "DIN Alternate", "Bahnschrift", sans-serif;
 }
 
+.action-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  min-width: 0;
+}
+
+.bookmarked-note {
+  color: var(--good);
+  font-size: 11px;
+}
+
 .feedback {
   margin-top: 19px;
   padding-top: 16px;

@@ -309,6 +309,36 @@
     return state.data.questions.filter((question) => question.number <= 55 && mistakeFor(question));
   }
 
+  function isManualBookmark(question) {
+    const mistake = mistakeFor(question);
+    return Boolean(mistake && mistake.source === "manual" && !mistake.wrongCount);
+  }
+
+  function bookmarkMistake(question) {
+    // 答对或尚未作答的题也可以手动收藏进错题本，便于回头复习。
+    if (question.number > 55 || mistakeFor(question)) return false;
+    state.store.mistakes ||= {};
+    state.store.mistakes[question.year] ||= {};
+    state.store.mistakes[question.year][question.number] = {
+      wrongCount: 0,
+      lastWrongAt: "",
+      lastWrongSelected: null,
+      mastered: false,
+      source: "manual",
+      addedAt: new Date().toISOString()
+    };
+    save();
+    return true;
+  }
+
+  function unbookmarkMistake(question) {
+    // 只允许移除纯手动收藏；一旦答错过就保留错题记录。
+    if (!isManualBookmark(question)) return false;
+    delete state.store.mistakes[question.year][question.number];
+    save();
+    return true;
+  }
+
   function restoreMistakes() {
     // Import old wrong answers once; do not count page refreshes as new mistakes.
     state.store.mistakes ||= {};
@@ -347,10 +377,12 @@
     if (selected !== question.answer) {
       state.store.mistakes[question.year] ||= {};
       state.store.mistakes[question.year][question.number] = {
+        ...mistake,
         wrongCount: (mistake?.wrongCount || 0) + 1,
         lastWrongAt: attempts[question.year][question.number].updatedAt,
         lastWrongSelected: selected,
-        mastered: false
+        mastered: false,
+        source: mistake?.source || "wrong"
       };
     } else if (mistake) {
       mistake.mastered = true;
@@ -479,22 +511,25 @@
       question.number >= config.first && question.number <= config.last &&
       (filters.status === "all" || Boolean(mistakeFor(question).mastered) === (filters.status === "mastered"))
     ).sort((a, b) =>
-      String(mistakeFor(b).lastWrongAt).localeCompare(String(mistakeFor(a).lastWrongAt)) ||
+      String(mistakeFor(b).lastWrongAt || mistakeFor(b).addedAt || "").localeCompare(String(mistakeFor(a).lastWrongAt || mistakeFor(a).addedAt || "")) ||
       b.year - a.year || a.number - b.number
     );
     document.getElementById("mistakes-summary").textContent =
-      `当前筛选 ${questions.length} 题 · 累计收录 ${all.length} 题 · 按最近答错优先显示`;
+      `当前筛选 ${questions.length} 题 · 累计收录 ${all.length} 题 · 按最近收录优先显示`;
     const list = document.getElementById("mistakes-list");
     list.innerHTML = questions.length ? questions.map((question) => {
       const mistake = mistakeFor(question);
       const preview = (question.shared ? `${question.shared}\n${question.stem}` : question.stem).replace(/\s+/g, " ");
+      const origin = mistake.source === "manual"
+        ? (mistake.wrongCount ? `手动收藏 · 累计答错 ${mistake.wrongCount} 次` : "手动收藏")
+        : `累计答错 ${mistake.wrongCount} 次`;
       return `<article class="mistake-card" data-year="${question.year}" data-number="${question.number}">
         <div class="mistake-card-heading"><h2>${question.year} 年 · 第 ${question.number} 题</h2><span class="mistake-status ${mistake.mastered ? "is-mastered" : "is-pending"}">${mistake.mastered ? "已订正" : "待复习"}</span></div>
-        <p class="mistake-meta">${escapeHTML(question.category)} · 累计答错 ${mistake.wrongCount} 次${isRetrying(question) ? " · 重做中" : ""}</p>
+        <p class="mistake-meta">${escapeHTML(question.category)} · ${origin}${isRetrying(question) ? " · 重做中" : ""}</p>
         <p class="mistake-preview">${escapeHTML(preview.slice(0, 170))}${preview.length > 170 ? "…" : ""}</p>
-        <div class="mistake-actions"><button type="button" class="secondary-button" data-mistake-action="view">查看题目与解析</button><button type="button" class="primary-button" data-mistake-action="retry">${isRetrying(question) ? "继续重新练习" : "重新练习"}</button></div>
+        <div class="mistake-actions"><button type="button" class="secondary-button" data-mistake-action="view">查看题目与解析</button><button type="button" class="primary-button" data-mistake-action="retry">${isRetrying(question) ? "继续重新练习" : "重新练习"}</button>${isManualBookmark(question) ? '<button type="button" class="secondary-button" data-mistake-action="remove">移出错题本</button>' : ""}</div>
       </article>`;
-    }).join("") : `<div class="empty-panel"><h2>${all.length ? "当前筛选下没有错题" : "还没有收录的错题"}</h2><p>${all.length ? "可以切换年份、模块或复习状态；已订正的题仍保留在错题本中。" : "在真题训练中提交答案，答错的客观题会自动出现在这里。"}</p><button type="button" class="secondary-button" data-empty-practice>去真题训练</button></div>`;
+    }).join("") : `<div class="empty-panel"><h2>${all.length ? "当前筛选下没有错题" : "还没有收录的错题"}</h2><p>${all.length ? "可以切换年份、模块或复习状态；已订正的题仍保留在错题本中。" : "在真题训练中提交答案，答错的客观题会自动出现在这里；答对或想重点复习的题也可以点“加入错题本”手动收藏。"}</p><button type="button" class="secondary-button" data-empty-practice>去真题训练</button></div>`;
     list.querySelector("[data-empty-practice]")?.addEventListener("click", () => setView("practice"));
     typeset(list);
   }
@@ -647,6 +682,11 @@
     const selected = isWriting ? null : retrying ? draftFor(question) : attempt?.selected || draftFor(question);
     const checked = !isWriting && Boolean(attempt) && !retrying;
     const mistake = mistakeFor(question);
+    const bookmarkControl = isWriting ? "" : mistake
+      ? (isManualBookmark(question)
+        ? '<button type="button" class="text-button" id="unbookmark-question">移出错题本</button>'
+        : '<span class="bookmarked-note">已在错题本</span>')
+      : '<button type="button" class="text-button" id="bookmark-question">加入错题本</button>';
     state.selected = selected;
     state.checked = checked;
     state.store.practice = {
@@ -690,7 +730,10 @@
       ${imagePath ? `<button class="question-image-toggle" data-image-toggle>查看原卷版式 <svg class="icon"><use href="#icon-chevron-down"></use></svg></button><img class="question-image" src="${escapeHTML(imagePath)}" alt="${question.year} 年第 ${question.number} 题原卷切片" loading="lazy" />` : ""}
       ${options ? `<div class="option-list">${options}</div>` : ""}
       <div class="action-row">
-        <span class="question-index">${index + 1} / ${questions.length} · ${isWriting ? "写作题" : `已提交 ${submittedCount}`}</span>
+        <div class="action-meta">
+          <span class="question-index">${index + 1} / ${questions.length} · ${isWriting ? "写作题" : `已提交 ${submittedCount}`}</span>
+          ${bookmarkControl}
+        </div>
         <div class="action-group">
           <button type="button" class="secondary-button" data-question-nav="-1" ${index <= 0 ? "disabled" : ""} aria-label="上一题"><svg class="icon"><use href="#icon-arrow-left"></use></svg></button>
           ${isWriting ? "" : !checked ? `<button type="button" class="primary-button" id="submit-answer" aria-describedby="question-submit-status" ${selected ? "" : "disabled"}>提交本题并查看解析</button>` : `<button type="button" class="primary-button" id="view-explanation" aria-controls="question-feedback">查看本题解析</button>`}
@@ -709,7 +752,7 @@
           <svg class="icon"><use href="#icon-${correct ? "check" : "info"}"></use></svg>
           ${correct ? "回答正确" : "回答错误"} · 你的答案 ${selected} · 正确答案 ${question.answer}
         </div>
-        ${mistake ? `<div class="mistake-feedback"><p>${mistake.mastered ? "本题已订正，仍保留在错题本中。" : "本题已自动收录到错题本，可稍后重新练习。"}</p><div class="mistake-actions"><button type="button" class="secondary-button" id="retry-question">重新练习本题</button><button type="button" class="secondary-button" id="open-mistakes">返回错题本</button></div></div>` : ""}
+        ${mistake ? `<div class="mistake-feedback"><p>${mistake.mastered ? "本题已订正，仍保留在错题本中。" : mistake.source === "manual" ? "本题已收藏到错题本，可随时重新练习。" : "本题已自动收录到错题本，可稍后重新练习。"}</p><div class="mistake-actions"><button type="button" class="secondary-button" id="retry-question">重新练习本题</button><button type="button" class="secondary-button" id="open-mistakes">返回错题本</button></div></div>` : ""}
         <div class="explanation"><h3 id="question-explanation-title">本题解析</h3>${renderMarkdownText(question.explanation || "本题暂无详细解析，请对照原卷答案。")}</div>
       </section>` : ""}
     `;
@@ -746,6 +789,18 @@
     panel.querySelector("#view-explanation")?.addEventListener("click", focusExplanation);
     panel.querySelector("#retry-question")?.addEventListener("click", () => openMistake(question, true));
     panel.querySelector("#open-mistakes")?.addEventListener("click", () => setView("mistakes"));
+    panel.querySelector("#bookmark-question")?.addEventListener("click", () => {
+      if (!bookmarkMistake(question)) return;
+      renderQuestion();
+      renderMistakeCounts();
+      showToast("已加入错题本，可在错题本中复习。");
+    });
+    panel.querySelector("#unbookmark-question")?.addEventListener("click", () => {
+      if (!unbookmarkMistake(question)) return;
+      renderQuestion();
+      renderMistakeCounts();
+      showToast("已移出错题本。");
+    });
     panel.querySelector("#cancel-retry")?.addEventListener("click", () => {
       delete state.store.retries[question.year][question.number];
       if (state.store.drafts?.[question.year]) delete state.store.drafts[question.year][question.number];
@@ -1177,6 +1232,7 @@
         <li>未提交的选择和已提交的结果均逐题保存，切题或刷新后可继续；已提交题可点击“查看本题解析”回看。</li>
         <li>选择年份和模块后，可用“直接定位题目”或展开题号面板跳到任意题；颜色和文字标明作答状态。</li>
         <li>答错自动进入错题本，可按年份、模块、复习状态筛选；重新练习会隐藏答案，答对后归入已订正。</li>
+        <li>答对或想重点复习的题，可在题目下方点“加入错题本”手动收藏；纯手动收藏可随时移出，答错过则保留记录。</li>
         <li>错题本也会收录旧作答中的错题；清除训练范围作答会同步清除该范围错题及订正记录。</li>
         <li>知识点速查可按“核心 / 拓展”与专题、公式、规则关键词筛选，知识卡附 PDF 页码。</li>
         <li>写作方法、限时配时和全文自查清单在知识点速查页，不替你编写范文。</li>
@@ -1229,7 +1285,15 @@
       const question = state.data.questions.find((item) =>
         item.year === Number(card.dataset.year) && item.number === Number(card.dataset.number)
       );
-      if (question) openMistake(question, button.dataset.mistakeAction === "retry");
+      if (!question) return;
+      if (button.dataset.mistakeAction === "remove") {
+        if (unbookmarkMistake(question)) {
+          renderMistakes();
+          showToast("已移出错题本。");
+        }
+        return;
+      }
+      openMistake(question, button.dataset.mistakeAction === "retry");
     });
     document.getElementById("practice-module").addEventListener("change", (event) => {
       state.practiceModule = event.target.value;
