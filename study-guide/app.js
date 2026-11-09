@@ -3,9 +3,13 @@
 
   const STORE_KEY = "kaoyan199-study-guide-v1";
   const DEFAULT_SETTINGS = { examDate: "2026-12-19", weeklyHours: 14 };
+  const EXPORT_SCHEMA = "kaoyan199-study-records";
+  const EXPORT_VERSION = 1;
+  const RECORD_BUCKETS = ["attempts", "drafts", "mistakes", "retries", "activity", "writingReview"];
   // 原卷切片图路径模板：本地复习台指向 Markdown 题库，站点构建产物改写为站点内目录
   const IMAGE_PATH_TEMPLATE = "../199管综真题_Markdown题库/{year}年/images/{file}.png";
   const VIEW_NAMES = {
+    dashboard: "数据看板",
     practice: "真题训练",
     mistakes: "错题本",
     skills: "知识点速查"
@@ -221,7 +225,7 @@
   }
 
   const state = {
-    view: "practice",
+    view: "dashboard",
     skillTab: "math",
     knowledgeChapter: null,
     knowledgeLevel: "all",
@@ -424,6 +428,9 @@
     document.getElementById("sidebar").classList.remove("is-open");
     history.replaceState(null, "", `#${view}`);
     window.scrollTo({ top: 0, behavior: "instant" });
+    if (view === "dashboard") {
+      renderDashboard();
+    }
     if (view === "practice") {
       renderQuestion();
     }
@@ -441,7 +448,7 @@
     }
   }
 
-  function renderStats() {
+  function studyActivity() {
     const attendance = state.store.activity || {};
     const now = parseLocalDate(localDateKey());
     let hours = 0;
@@ -456,16 +463,10 @@
         key,
         active: Boolean(day),
         today: offset === 0,
+        count: day?.count || 0,
         label: ["日", "一", "二", "三", "四", "五", "六"][date.getDay()]
       });
     }
-    const target = Number(state.store.settings.weeklyHours) || 14;
-    document.getElementById("week-hours").textContent = hours.toFixed(1);
-    document.getElementById("week-track-fill").style.width = `${Math.min(100, hours / target * 100)}%`;
-    document.getElementById("week-dots").innerHTML = weekdays.map((day) =>
-      `<span class="week-dot${day.active ? " is-active" : ""}${day.today ? " is-today" : ""}"><i></i>${day.label}</span>`
-    ).join("");
-
     let streak = 0;
     for (let offset = 0; offset < 400; offset += 1) {
       const date = new Date(now);
@@ -476,6 +477,17 @@
         break;
       }
     }
+    return { hours, streak, weekdays };
+  }
+
+  function renderStats() {
+    const { hours, streak, weekdays } = studyActivity();
+    const target = Number(state.store.settings.weeklyHours) || 14;
+    document.getElementById("week-hours").textContent = hours.toFixed(1);
+    document.getElementById("week-track-fill").style.width = `${Math.min(100, hours / target * 100)}%`;
+    document.getElementById("week-dots").innerHTML = weekdays.map((day) =>
+      `<span class="week-dot${day.active ? " is-active" : ""}${day.today ? " is-today" : ""}"><i></i>${day.label}</span>`
+    ).join("");
     document.getElementById("streak-days").textContent = streak;
 
     const attempts = allAttempts();
@@ -484,6 +496,134 @@
     document.getElementById("accuracy-total").textContent =
       attempts.length ? `${Math.round(correct / attempts.length * 100)}%` : "—";
     renderMistakeCounts();
+    if (state.view === "dashboard") renderDashboard();
+  }
+
+  function dashboardData() {
+    const rows = state.data.questions
+      .filter((question) => question.number <= 55)
+      .map((question) => ({ question, attempt: attemptFor(question) }));
+    const answered = rows.filter((row) => row.attempt);
+    const correct = answered.filter((row) => row.attempt.correct);
+    const summarize = (subset) => {
+      const done = subset.filter((row) => row.attempt);
+      const right = done.filter((row) => row.attempt.correct);
+      return { total: subset.length, answered: done.length, correct: right.length };
+    };
+    const modules = ["math", "logic"].map((id) => ({
+      id,
+      label: MODULE_CONFIG[id].label,
+      ...summarize(rows.filter((row) => (row.question.number <= 25 ? "math" : "logic") === id))
+    }));
+    const years = [...state.data.meta.years].reverse().map((year) => ({
+      year,
+      ...summarize(rows.filter((row) => row.question.year === year))
+    }));
+    const mistakes = mistakeQuestions();
+    const recent = [...answered]
+      .sort((a, b) => String(b.attempt.updatedAt || "").localeCompare(String(a.attempt.updatedAt || "")))
+      .slice(0, 6);
+    return {
+      total: rows.length,
+      answered: answered.length,
+      correct: correct.length,
+      modules,
+      years,
+      mistakes: mistakes.length,
+      pending: mistakes.filter((question) => !mistakeFor(question).mastered).length,
+      mastered: mistakes.filter((question) => mistakeFor(question).mastered).length,
+      manual: mistakes.filter((question) => mistakeFor(question).source === "manual").length,
+      recent
+    };
+  }
+
+  function percent(part, whole) {
+    return whole ? Math.round(part / whole * 100) : 0;
+  }
+
+  function renderDashboard() {
+    const data = dashboardData();
+    const { hours, streak, weekdays } = studyActivity();
+    const accuracy = data.answered ? `${percent(data.correct, data.answered)}%` : "—";
+    const stat = (label, value, sub, dash) => `
+      <button type="button" class="dash-stat" ${dash ? `data-dash="${dash}"` : "disabled"}>
+        <span class="dash-stat-value">${value}</span>
+        <span class="dash-stat-label">${label}</span>
+        <span class="dash-stat-sub">${sub}</span>
+      </button>`;
+    const moduleRow = (module) => `
+      <button type="button" class="dash-row" data-dash="module" data-module="${module.id}">
+        <span class="dash-row-title">${module.label}</span>
+        <span class="dash-bar"><span style="width:${percent(module.answered, module.total)}%"></span></span>
+        <span class="dash-row-meta">${module.answered}/${module.total} 题 · ${module.answered ? `正确率 ${percent(module.correct, module.answered)}%` : "未开始"}</span>
+      </button>`;
+    const yearRow = (year) => `
+      <button type="button" class="dash-row dash-year-row" data-dash="year" data-year="${year.year}">
+        <span class="dash-row-title">${year.year}</span>
+        <span class="dash-bar"><span style="width:${percent(year.answered, year.total)}%"></span></span>
+        <span class="dash-row-meta">${year.answered}/${year.total}${year.answered ? ` · ${percent(year.correct, year.answered)}%` : ""}</span>
+      </button>`;
+    const recentRow = (row) => `
+      <button type="button" class="dash-row dash-recent-row" data-dash="question" data-year="${row.question.year}" data-number="${row.question.number}">
+        <span class="dash-recent-status ${row.attempt.correct ? "is-good" : "is-bad"}">${row.attempt.correct ? "对" : "错"}</span>
+        <span class="dash-row-title">${row.question.year} · 第 ${row.question.number} 题</span>
+        <span class="dash-row-meta">${escapeHTML(row.question.category)}</span>
+      </button>`;
+    const maxCount = Math.max(1, ...weekdays.map((day) => day.count));
+    document.getElementById("view-dashboard").innerHTML = `
+      <div class="page-heading practice-heading">
+        <div>
+          <div class="eyebrow">STUDY DASHBOARD · 2009–2026</div>
+          <h1 id="dashboard-heading">数据看板</h1>
+          <p>做题进度、正确率与错题复习情况一览；点击卡片可直接进入对应训练。</p>
+        </div>
+        <div class="dash-heading-actions">
+          <button type="button" class="primary-button" data-dash="practice">继续训练</button>
+          <button type="button" class="secondary-button" data-dash="mistakes">复盘错题</button>
+        </div>
+      </div>
+      <div class="dash-stats">
+        ${stat("已作答", data.answered, `共 ${data.total} 道客观题`, "practice")}
+        ${stat("正确率", accuracy, `答对 ${data.correct} 题`, "practice")}
+        ${stat("待复习错题", data.pending, `已订正 ${data.mastered} · 收藏 ${data.manual}`, "mistakes")}
+        ${stat("连续学习", `${streak} 天`, `本周投入 ${hours.toFixed(1)} 小时`)}
+      </div>
+      <div class="dash-grid">
+        <section class="dash-panel">
+          <div class="dash-panel-heading"><h2>模块掌握</h2><span>点击进入该模块</span></div>
+          ${data.modules.map(moduleRow).join("")}
+        </section>
+        <section class="dash-panel">
+          <div class="dash-panel-heading"><h2>学习活跃</h2><span>近 7 天提交量</span></div>
+          <div class="dash-activity">
+            ${weekdays.map((day) => `
+              <div class="dash-activity-day${day.today ? " is-today" : ""}">
+                <span class="dash-activity-bar" style="height:${day.count ? Math.max(8, Math.round(day.count / maxCount * 100)) : 3}%"></span>
+                <small>${day.label}</small>
+              </div>`).join("")}
+          </div>
+          <p class="dash-panel-note">累计收录错题 ${data.mistakes} 条，其中手动收藏 ${data.manual} 条。</p>
+        </section>
+        <section class="dash-panel dash-panel-years">
+          <div class="dash-panel-heading"><h2>年份进度</h2><span>点击进入该年份</span></div>
+          <div class="dash-years">${data.years.map(yearRow).join("")}</div>
+        </section>
+        <section class="dash-panel">
+          <div class="dash-panel-heading"><h2>最近作答</h2><span>点击回看该题</span></div>
+          ${data.recent.length ? data.recent.map(recentRow).join("") : '<p class="dash-panel-note">还没有作答记录，点“继续训练”开始第一题。</p>'}
+        </section>
+      </div>
+    `;
+  }
+
+  function openQuestion(question) {
+    state.practiceYear = question.year;
+    state.practiceModule = question.number <= 25 ? "math" : question.number <= 55 ? "logic" : "writing";
+    state.question = question;
+    renderPracticeOptions();
+    setView("practice");
+    setQuestion(question);
+    focusQuestion();
   }
 
   function renderMistakeCounts() {
@@ -1178,6 +1318,140 @@
     updateWritingClock();
   }
 
+  function exportRecords() {
+    const payload = {
+      schema: EXPORT_SCHEMA,
+      version: EXPORT_VERSION,
+      exportedAt: new Date().toISOString(),
+      records: Object.fromEntries(RECORD_BUCKETS.map((bucket) => [bucket, state.store[bucket] || {}]))
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `kaoyan199-records-${localDateKey()}.json`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    showToast("学习记录已导出为 JSON 文件。");
+  }
+
+  function mergeAttempt(current, incoming) {
+    if (!current) return incoming;
+    return String(incoming.updatedAt || "") > String(current.updatedAt || "") ? incoming : current;
+  }
+
+  function mergeMistake(current, incoming) {
+    if (!current) return incoming;
+    const wrongCount = Math.max(current.wrongCount || 0, incoming.wrongCount || 0);
+    const newer = String(incoming.lastWrongAt || incoming.addedAt || "") > String(current.lastWrongAt || current.addedAt || "")
+      ? incoming : current;
+    const source = wrongCount > 0
+      ? ((current.wrongCount > 0 && current.source) || (incoming.wrongCount > 0 && incoming.source) || "wrong")
+      : (current.source || incoming.source || "manual");
+    return {
+      ...current,
+      ...incoming,
+      wrongCount,
+      mastered: Boolean(current.mastered || incoming.mastered),
+      lastWrongAt: newer.lastWrongAt || "",
+      lastWrongSelected: newer.lastWrongSelected ?? null,
+      source,
+      addedAt: [current.addedAt, incoming.addedAt].filter(Boolean).sort()[0] || ""
+    };
+  }
+
+  function mergeRecords(payload) {
+    const isObj = (value) => Boolean(value) && typeof value === "object" && !Array.isArray(value);
+    if (!isObj(payload)) throw new Error("导入失败：文件内容不是 JSON 对象。");
+    if (payload.schema !== EXPORT_SCHEMA) throw new Error("导入失败：不是本复习台导出的记录备份。");
+    if (payload.version !== EXPORT_VERSION) throw new Error(`导入失败：备份版本 ${payload.version} 不受支持。`);
+    const records = payload.records;
+    if (!isObj(records)) throw new Error("导入失败：备份缺少 records 数据。");
+    const years = new Set(state.data.meta.years);
+    const validKey = (year, number) =>
+      years.has(Number(year)) && Number.isInteger(Number(number)) && Number(number) >= 1 && Number(number) <= 55;
+    const counts = { attempts: 0, drafts: 0, mistakes: 0, retries: 0, activity: 0, writingReview: 0 };
+    const nested = {
+      attempts: {
+        valid: (v) => isObj(v) && typeof v.selected === "string" && typeof v.correct === "boolean",
+        merge: mergeAttempt
+      },
+      drafts: { valid: (v) => typeof v === "string" && /^[A-E]$/.test(v), merge: (cur, inc) => cur ?? inc },
+      mistakes: {
+        valid: (v) => isObj(v) && Number.isFinite(v.wrongCount) && typeof v.mastered === "boolean",
+        merge: mergeMistake
+      },
+      retries: { valid: (v) => v === true || v === "paused", merge: (cur, inc) => cur ?? inc }
+    };
+    for (const [bucket, config] of Object.entries(nested)) {
+      const incomingBucket = records[bucket];
+      if (!isObj(incomingBucket)) continue;
+      state.store[bucket] ||= {};
+      for (const [year, byNumber] of Object.entries(incomingBucket)) {
+        if (!isObj(byNumber)) continue;
+        for (const [number, value] of Object.entries(byNumber)) {
+          if (!validKey(year, number) || !config.valid(value)) continue;
+          const target = (state.store[bucket][year] ||= {});
+          const current = target[number];
+          const merged = config.merge(current, value);
+          if (current === undefined || merged !== current) counts[bucket] += 1;
+          target[number] = merged;
+        }
+      }
+    }
+    if (isObj(records.activity)) {
+      state.store.activity ||= {};
+      for (const [day, value] of Object.entries(records.activity)) {
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(day) || !isObj(value) || !Number.isFinite(value.count)) continue;
+        const current = state.store.activity[day];
+        const count = Math.max(current?.count || 0, value.count);
+        if (!current || count !== current.count) counts.activity += 1;
+        state.store.activity[day] = { count };
+      }
+    }
+    if (isObj(records.writingReview)) {
+      state.store.writingReview ||= {};
+      for (const [day, byIndex] of Object.entries(records.writingReview)) {
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(day) || !isObj(byIndex)) continue;
+        const target = (state.store.writingReview[day] ||= {});
+        for (const [index, value] of Object.entries(byIndex)) {
+          if (typeof value !== "boolean") continue;
+          const merged = Boolean(target[index] || value);
+          if (target[index] === undefined || merged !== target[index]) counts.writingReview += 1;
+          target[index] = merged;
+        }
+      }
+    }
+    const parts = [];
+    if (counts.attempts) parts.push(`作答 ${counts.attempts}`);
+    if (counts.mistakes) parts.push(`错题 ${counts.mistakes}`);
+    if (counts.drafts) parts.push(`草稿 ${counts.drafts}`);
+    if (counts.retries) parts.push(`重做 ${counts.retries}`);
+    if (counts.activity) parts.push(`学习日 ${counts.activity}`);
+    if (counts.writingReview) parts.push(`写作自查 ${counts.writingReview}`);
+    return parts.length ? `导入完成，合并${parts.join("、")}条记录。` : "导入完成：备份中没有新增或更新的记录。";
+  }
+
+  function importRecordsFromFile(file) {
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const message = mergeRecords(JSON.parse(String(reader.result)));
+        save();
+        renderStats();
+        renderQuestion();
+        if (state.view === "mistakes") renderMistakes();
+        showToast(message);
+      } catch (error) {
+        showToast(error instanceof SyntaxError ? "导入失败：文件不是有效的 JSON。" : error.message);
+      }
+    };
+    reader.onerror = () => showToast("读取文件失败。");
+    reader.readAsText(file);
+  }
+
   function openSettings() {
     document.getElementById("exam-date-input").value = state.store.settings.examDate;
     document.getElementById("weekly-hours-input").value = state.store.settings.weeklyHours;
@@ -1219,14 +1493,40 @@
     document.querySelectorAll("[data-view-link]").forEach((item) => {
       item.addEventListener("click", () => setView(item.dataset.viewLink));
     });
+    document.getElementById("view-dashboard").addEventListener("click", (event) => {
+      const target = event.target.closest("[data-dash]");
+      if (!target || target.disabled) return;
+      const kind = target.dataset.dash;
+      if (kind === "mistakes") {
+        setView("mistakes");
+        return;
+      }
+      if (kind === "question") {
+        const question = state.data.questions.find((item) =>
+          item.year === Number(target.dataset.year) && item.number === Number(target.dataset.number)
+        );
+        if (question) openQuestion(question);
+        return;
+      }
+      if (kind === "module") state.practiceModule = target.dataset.module;
+      if (kind === "year") state.practiceYear = Number(target.dataset.year);
+      state.question = null;
+      state.selected = null;
+      state.checked = false;
+      renderPracticeOptions();
+      setView("practice");
+      setQuestion(findNextUnanswered());
+      focusQuestion();
+    });
     document.getElementById("menu-toggle").addEventListener("click", () => {
       document.getElementById("sidebar").classList.toggle("is-open");
     });
     document.getElementById("date-chip").addEventListener("click", openSettings);
     document.getElementById("open-settings").addEventListener("click", openSettings);
     document.getElementById("open-help").addEventListener("click", () => openNotes("如何使用复习台", `
-      <p>复习台分三页：真题训练、错题本、知识点速查。作答记录只保存在当前浏览器。</p>
+      <p>首页是数据看板，汇总进度、正确率与错题复习情况；另有真题训练、错题本、知识点速查三页。作答记录只保存在当前浏览器。</p>
       <ul>
+        <li>数据看板的统计卡、模块、年份与最近作答都可点击，直接跳到对应训练或题目。</li>
         <li>真题训练支持数学、逻辑、整卷客观题和综合写作，记录保存在当前浏览器。</li>
         <li>每题选择选项后，点击“提交本题并查看解析”即可查看对错与解析，无需交整卷。</li>
         <li>未提交的选择和已提交的结果均逐题保存，切题或刷新后可继续；已提交题可点击“查看本题解析”回看。</li>
@@ -1234,6 +1534,7 @@
         <li>答错自动进入错题本，可按年份、模块、复习状态筛选；重新练习会隐藏答案，答对后归入已订正。</li>
         <li>答对或想重点复习的题，可在题目下方点“加入错题本”手动收藏；纯手动收藏可随时移出，答错过则保留记录。</li>
         <li>错题本也会收录旧作答中的错题；清除训练范围作答会同步清除该范围错题及订正记录。</li>
+        <li>学习设置里可导出 / 导入学习记录（JSON）：导入为合并、不清空当前记录，重复导入同一份备份不会重复计数。</li>
         <li>知识点速查可按“核心 / 拓展”与专题、公式、规则关键词筛选，知识卡附 PDF 页码。</li>
         <li>写作方法、限时配时和全文自查清单在知识点速查页，不替你编写范文。</li>
       </ul>
@@ -1250,6 +1551,15 @@
       renderStats();
       document.getElementById("settings-dialog").close();
       showToast("学习设置已保存。");
+    });
+    document.getElementById("export-records").addEventListener("click", exportRecords);
+    document.getElementById("import-records").addEventListener("click", () => {
+      document.getElementById("import-file").click();
+    });
+    document.getElementById("import-file").addEventListener("change", (event) => {
+      const file = event.target.files?.[0];
+      event.target.value = "";
+      if (file) importRecordsFromFile(file);
     });
     document.getElementById("notes-close").addEventListener("click", () => {
       document.getElementById("notes-dialog").close();

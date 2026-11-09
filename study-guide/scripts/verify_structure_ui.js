@@ -43,20 +43,40 @@ async function openView(page, view) {
     await page.locator("#practice-year option").first().waitFor({ state: "attached" });
 
     const navLabels = await page.locator(".side-nav .nav-item > span:not(.nav-badge)").allTextContents();
-    check("导航只有真题训练、错题本、知识点速查三项",
-      JSON.stringify(navLabels) === JSON.stringify(["真题训练", "错题本", "知识点速查"]));
+    check("导航为数据看板、真题训练、错题本、知识点速查四项",
+      JSON.stringify(navLabels) === JSON.stringify(["数据看板", "真题训练", "错题本", "知识点速查"]));
     check("首页不再保留今日计划与写作工坊",
       await page.locator("#view-today").count() === 0 && await page.locator("#view-writing").count() === 0);
-    check("默认落地页是真题训练",
-      await page.locator("#view-practice").evaluate(el => el.classList.contains("is-active")) &&
-      await page.locator("#view-mistakes").evaluate(el => !el.classList.contains("is-active")));
-    check("面包屑指向真题训练",
-      (await page.locator("#breadcrumb-current").textContent()).trim() === "真题训练");
+    check("默认落地页是数据看板",
+      await page.locator("#view-dashboard").evaluate(el => el.classList.contains("is-active")) &&
+      await page.locator("#view-practice").evaluate(el => !el.classList.contains("is-active")));
+    check("面包屑指向数据看板",
+      (await page.locator("#breadcrumb-current").textContent()).trim() === "数据看板");
     check("侧边栏保留连续学习、倒计时与本周投入",
       await page.locator("#streak-days").isVisible() &&
       await page.locator("#countdown-days").isVisible() &&
       await page.locator("#week-hours").isVisible() &&
       await page.locator("#week-dots .week-dot").count() === 7);
+
+    // 数据看板
+    check("看板渲染四张统计卡与模块/年份/活跃/最近面板",
+      await page.locator("#view-dashboard .dash-stat").count() === 4 &&
+      await page.locator("#view-dashboard .dash-panel").count() === 4 &&
+      await page.locator('#view-dashboard [data-dash="module"]').count() === 2 &&
+      await page.locator('#view-dashboard [data-dash="year"]').count() === 18 &&
+      await page.locator("#view-dashboard .dash-activity-day").count() === 7);
+    await page.locator('#view-dashboard [data-dash="module"][data-module="logic"]').click();
+    await page.locator("#view-practice").waitFor();
+    check("看板模块卡跳转到对应模块训练",
+      await page.locator("#practice-module").inputValue() === "logic");
+    await page.locator('button[data-view="dashboard"]').click();
+    await page.locator("#view-dashboard").waitFor();
+    await page.locator('#view-dashboard [data-dash="year"]').first().click();
+    await page.locator("#view-practice").waitFor();
+    check("看板年份卡跳转到对应年份训练",
+      await page.locator("#practice-year").inputValue() === "2026");
+    await page.locator('button[data-view="dashboard"]').click();
+    await page.locator("#view-dashboard").waitFor();
 
     // 知识点速查
     await openView(page, "skills");
